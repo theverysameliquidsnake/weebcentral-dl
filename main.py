@@ -197,23 +197,22 @@ if __name__ == "__main__":
 
     filter_chapter = None
 
-    if args.latest and os.path.exists(args.output):
-        # Find all existing zip files and get the highest chapter number
-        zip_files = []
-        # Recursively search for zip files in output directory and its subdirectories
-        for root, dirs, files in os.walk(args.output):
-            zip_files.extend(
-                [
-                    os.path.join(root, f)
-                    for f in files
-                    if f.startswith("vol_") and f.endswith(".zip")
-                ]
-            )
+    # Replace hyphens with spaces in the manga title
+    search_title = args.title.replace("-", " ")
+    manga_url = search_manga(search_title)
+
+    # Create manga-specific directory using the slug
+    manga_slug = get_manga_slug(manga_url) if manga_url else None
+    manga_dir = os.path.join(args.output, manga_slug) if manga_slug else args.output
+
+    if args.latest and os.path.exists(manga_dir):
+        # Find zip files only in this manga's directory
+        zip_files = [f for f in os.listdir(manga_dir) 
+                    if f.startswith("vol_") and f.endswith(".zip")]
 
         if zip_files:
             chapter_numbers = []
-            for zip_path in zip_files:
-                zip_file = os.path.basename(zip_path)
+            for zip_file in zip_files:
                 try:
                     # Extract chapter number from vol_XXX.zip format
                     chapter_num = float(zip_file[4:-4])  # Remove 'vol_' and '.zip'
@@ -223,7 +222,7 @@ if __name__ == "__main__":
 
             if chapter_numbers:
                 filter_chapter = max(chapter_numbers)
-                print(f"Found highest chapter {filter_chapter}")
+                print(f"Found highest chapter {filter_chapter} in {manga_dir}")
                 print(f"Will only download chapters above chapter {filter_chapter}")
     elif args.chapter_filter:
         filter_chapter = args.chapter_filter
@@ -233,14 +232,8 @@ if __name__ == "__main__":
         if args.verbose:
             print(*print_args, **kwargs)
 
-    # Replace hyphens with spaces in the manga title
-    search_title = args.title.replace("-", " ")
-    manga_url = search_manga(search_title)
-
     if manga_url:
-        # Create manga-specific directory using the slug
-        manga_slug = get_manga_slug(manga_url)
-        manga_dir = os.path.join(args.output, manga_slug) if manga_slug else args.output
+        # Create manga-specific directory
         os.makedirs(manga_dir, exist_ok=True)
 
         # Pre-scan existing zip files in manga directory
@@ -295,12 +288,13 @@ if __name__ == "__main__":
                 )
                 continue
 
-            # Check if zip exists before downloading
+            # Check if zip exists before downloading (including -1 variant)
             vol_name = f"vol_{int(chapter_num):03d}"
             zip_filename = f"{vol_name}.zip"
+            zip_filename_alt = f"{vol_name}-1.zip"
 
-            if args.zip and not args.no_skip and zip_filename in existing_zips:
-                vprint(f"Skipping existing zip archive: {zip_filename}")
+            if args.zip and not args.no_skip and (zip_filename in existing_zips or zip_filename_alt in existing_zips):
+                vprint(f"Skipping existing zip archive: {zip_filename} (or variant)")
                 continue
 
             # Get image links for each chapter
