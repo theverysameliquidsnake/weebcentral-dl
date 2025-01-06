@@ -66,44 +66,62 @@ def get_base_url(manga_url):
     return None
 
 
-def get_chapter_list_url(manga_url):
-    # Construct the full chapter list URL using the base URL
-    base_url = get_base_url(manga_url)
-    if base_url:
-        return f"{base_url}full-chapter-list"
+def get_rss_url(manga_url):
+    # Construct the RSS feed URL using the series ID
+    series_id = extract_series_id(manga_url)
+    if series_id:
+        return f"https://weebcentral.com/series/{series_id}/rss"
     return None
 
 
-def get_chapter_links(chapter_list_url):
+def get_chapter_links(rss_url):
+    import xmltodict
+    
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
     }
 
-    response = requests.request("GET", chapter_list_url, headers=headers)
-    parser = HTMLParser(response.text)
-
-    # Debug: Print the full HTML to see what we're working with
-    vprint("DEBUG: Full HTML response:")
-    vprint(response.text[:1000])  # First 1000 chars for brevity
-
+    response = requests.get(rss_url, headers=headers)
+    response.raise_for_status()
+    
+    # Parse XML response
+    rss_data = xmltodict.parse(response.text)
+    
     chapters = []
-    # Look for chapter links and their text
-    links = parser.css("a[href*='chapters']")
-
-    vprint(f"\nDEBUG: Found {len(links)} potential chapter links")
-
-    for link in links:
-        href = link.attributes.get("href", "")
-        # Find the chapter number span within this link
-        chapter_span = link.css_first("span.grow span")
-        if chapter_span:
-            chapter_text = chapter_span.text().strip()
-            if "Chapter" in chapter_text:
-                chapter_num = chapter_text.split("Chapter")[1].strip()
-                chapters.append({"chapter": chapter_num, "url": href})
-                vprint(f"DEBUG: Added {chapter_text} from {href}")
-
+    items = rss_data['rss']['channel'].get('item', [])
+    if not isinstance(items, list):
+        items = [items]
+        
+    vprint(f"\nDEBUG: Found {len(items)} items in RSS feed")
+    
+    for item in items:
+        title = item['title']
+        url = item['link']
+        vprint(f"DEBUG: Processing RSS item: {title} -> {url}")
+        
+        # Extract chapter number from title
+        # Handle both "Chapter X" and "Days X" formats
+        chapter_num = None
+        
+        # For titles like "Sakamoto Days Days 196"
+        if "Days" in title:
+            parts = title.split("Days")
+            if len(parts) > 1:
+                num_part = parts[-1].strip()  # Get the last number after "Days"
+                if num_part.replace(".", "").isdigit():
+                    chapter_num = num_part
+        # For titles with "Chapter X" format
+        elif "Chapter" in title:
+            parts = title.split("Chapter")
+            if len(parts) > 1:
+                num_part = parts[-1].strip()
+                if num_part.replace(".", "").isdigit():
+                    chapter_num = num_part
+                    
+        if chapter_num:
+            chapters.append({"chapter": chapter_num, "url": url})
+            vprint(f"DEBUG: Added chapter {chapter_num} from {url}")
+    
     # Sort chapters numerically
     sorted_chapters = sorted(
         chapters,
@@ -242,12 +260,10 @@ if __name__ == "__main__":
             existing_zips = {f for f in os.listdir(manga_dir) if f.endswith(".zip")}
             vprint(f"Found {len(existing_zips)} existing zip files")
     if manga_url:
-        chapter_list_url = get_chapter_list_url(manga_url)
-        base_url = get_base_url(manga_url)
-        print(f"Base URL: {base_url}")
-        print(f"Chapter list URL: {chapter_list_url}")
+        rss_url = get_rss_url(manga_url)
+        print(f"RSS URL: {rss_url}")
 
-        chapters = get_chapter_links(chapter_list_url)
+        chapters = get_chapter_links(rss_url)
 
         # Print summary of chapter range
         if chapters:

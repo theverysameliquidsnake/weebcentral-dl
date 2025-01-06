@@ -1,3 +1,4 @@
 requests>=2.31.0
 selectolax>=0.3.17
 playwright>=1.41.0
+xmltodict>=0.13.0
