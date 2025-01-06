@@ -102,14 +102,17 @@ def get_chapters_from_list(chapter_list_url):
             # Get raw title and clean it
             title = link.text()
             # Clean up the title by removing extra whitespace and CSS/HTML content
-            cleaned_title = ' '.join([
-                line.strip() for line in title.split('\n') 
-                if line.strip() and 
-                not line.strip().startswith('.') and  # Skip CSS
-                not line.strip().startswith('{') and  # Skip CSS
-                not line.strip().startswith('2024')   # Skip dates
-            ]).strip()
-            
+            cleaned_title = " ".join(
+                [
+                    line.strip()
+                    for line in title.split("\n")
+                    if line.strip()
+                    and not line.strip().startswith(".")  # Skip CSS
+                    and not line.strip().startswith("{")  # Skip CSS
+                    and not line.strip().startswith("2024")  # Skip dates
+                ]
+            ).strip()
+
             url = link.attributes.get("href")
             vprint(f"\nDEBUG: Processing link - Cleaned Title: {cleaned_title}")
             vprint(f"DEBUG: Link URL: {url}")
@@ -128,11 +131,13 @@ def get_chapters_from_list(chapter_list_url):
             else:
                 parts = None
                 format_type = None
-                vprint(f"DEBUG: No recognized chapter format in title")
-            
+                vprint("DEBUG: No recognized chapter format in title")
+
             if parts and len(parts) > 1:
                 num_part = parts[-1].strip()
-                vprint(f"DEBUG: Found '{format_type}' format - Extracted number part: '{num_part}'")
+                vprint(
+                    f"DEBUG: Found '{format_type}' format - Extracted number part: '{num_part}'"
+                )
                 # Only use the first number found
                 num_part = num_part.split()[0]
                 if num_part.replace(".", "").isdigit():
@@ -295,62 +300,63 @@ if __name__ == "__main__":
         default="wistoria",
         help="Manga title to search for (default: wistoria)",
     )
+    parser.add_argument(
+        "-b",
+        "--bulk",
+        type=str,
+        help="Path to text file containing manga titles (one per line)",
+    )
     args = parser.parse_args()
 
-    filter_chapter = None
+    def process_manga_title(title, filter_chapter=None):
+        """Process a single manga title"""
+        # Replace hyphens with spaces in the manga title
+        search_title = title.replace("-", " ")
+        print(f"\nProcessing manga: {search_title}")
 
-    # Replace hyphens with spaces in the manga title
-    search_title = args.title.replace("-", " ")
-    manga_url = search_manga(search_title)
+        manga_url = search_manga(search_title)
+        if not manga_url:
+            print(f"Could not find manga: {search_title}")
+            return
 
-    # Create manga-specific directory using the slug
-    manga_slug = get_manga_slug(manga_url) if manga_url else None
-    manga_dir = os.path.join(args.output, manga_slug) if manga_slug else args.output
+        # Create manga-specific directory using the slug
+        manga_slug = get_manga_slug(manga_url)
+        manga_dir = os.path.join(args.output, manga_slug) if manga_slug else args.output
 
-    if args.latest and os.path.exists(manga_dir):
-        # Find zip files only in this manga's directory
-        zip_files = [
-            f
-            for f in os.listdir(manga_dir)
-            if f.startswith("vol_") and f.endswith(".zip")
-        ]
+        if args.latest and os.path.exists(manga_dir):
+            # Find zip files only in this manga's directory
+            zip_files = [
+                f
+                for f in os.listdir(manga_dir)
+                if f.startswith("vol_") and f.endswith(".zip")
+            ]
 
-        if zip_files:
-            chapter_numbers = []
-            for zip_file in zip_files:
-                try:
-                    # Extract chapter number from vol_XXX.zip format
-                    chapter_num = float(zip_file[4:-4])  # Remove 'vol_' and '.zip'
-                    chapter_numbers.append(chapter_num)
-                except ValueError:
-                    continue
+            if zip_files:
+                chapter_numbers = []
+                for zip_file in zip_files:
+                    try:
+                        chapter_num = float(zip_file[4:-4])
+                        chapter_numbers.append(chapter_num)
+                    except ValueError:
+                        continue
 
-            if chapter_numbers:
-                filter_chapter = max(chapter_numbers)
-                print(f"Found highest chapter {filter_chapter} in {manga_dir}")
-                print(f"Will only download chapters above chapter {filter_chapter}")
-    elif args.chapter_filter:
-        filter_chapter = args.chapter_filter
+                if chapter_numbers:
+                    filter_chapter = max(chapter_numbers)
+                    print(f"Found highest chapter {filter_chapter} in {manga_dir}")
+                    print(f"Will only download chapters above chapter {filter_chapter}")
 
-    def vprint(*print_args, **kwargs):
-        """Print only if verbose mode is enabled"""
-        if args.verbose:
-            print(*print_args, **kwargs)
-
-    if manga_url:
         # Create manga-specific directory
         os.makedirs(manga_dir, exist_ok=True)
 
-        # Pre-scan existing zip files in manga directory
+        # Pre-scan existing zip files
         existing_zips = set()
         if args.zip and not args.no_skip and os.path.exists(manga_dir):
             existing_zips = {f for f in os.listdir(manga_dir) if f.endswith(".zip")}
             vprint(f"Found {len(existing_zips)} existing zip files")
-    if manga_url:
-        # Check if manga directory exists AND contains chapter files/zips
+
+        # Rest of your existing manga processing code...
         has_existing_chapters = False
         if os.path.exists(manga_dir):
-            # Check for any zip files or chapter directories
             dir_contents = os.listdir(manga_dir)
             has_existing_chapters = any(
                 f.startswith(("vol_", "chapter_")) for f in dir_contents
@@ -367,7 +373,7 @@ if __name__ == "__main__":
             print(f"Chapter list URL: {chapter_list_url}")
             chapters = get_chapters_from_list(chapter_list_url)
 
-        # Print summary of chapter range
+        # Process chapters...
         if chapters:
             min_chapter = min(
                 float(c["chapter"])
@@ -385,62 +391,73 @@ if __name__ == "__main__":
                     f"Will download chapters from {filter_chapter + 1} to {max_chapter}"
                 )
 
-        print("\nChapters found:")
-        for chapter in chapters:
-            print(f"Chapter {chapter['chapter']} - {chapter['url']}")
-            try:
-                chapter_num = float(chapter["chapter"])
+            print("\nChapters found:")
+            for chapter in chapters:
+                print(f"Chapter {chapter['chapter']} - {chapter['url']}")
+                try:
+                    chapter_num = float(chapter["chapter"])
 
-                # When using --latest or chapter-filter, process all chapters after the filter
-                if filter_chapter is not None:
-                    if chapter_num <= filter_chapter:
-                        vprint(
-                            f"Skipping chapter {chapter_num} (not higher than {filter_chapter})"
-                        )
-                        continue
-                    else:
-                        print(f"Processing chapter {chapter_num}")
-            except ValueError:
-                print(
-                    f"Warning: Could not parse chapter number from {chapter['chapter']}"
+                    if filter_chapter is not None:
+                        if chapter_num <= filter_chapter:
+                            vprint(
+                                f"Skipping chapter {chapter_num} (not higher than {filter_chapter})"
+                            )
+                            continue
+                        else:
+                            print(f"Processing chapter {chapter_num}")
+                except ValueError:
+                    print(
+                        f"Warning: Could not parse chapter number from {chapter['chapter']}"
+                    )
+                    continue
+
+                # Handle chapter versions
+                base_chapter = int(float(chapter_num))
+                version = None
+                if "." in str(chapter_num):
+                    version = int(str(chapter_num).split(".")[1])
+
+                vol_name = f"vol_{base_chapter:03d}"
+                if version:
+                    vol_name = f"{vol_name}-{version}"
+                zip_filename = f"{vol_name}.zip"
+
+                if args.zip and not args.no_skip and zip_filename in existing_zips:
+                    vprint(f"Skipping existing zip archive: {zip_filename}")
+                    continue
+
+                image_links = extract_chapter_images(chapter["url"], chapter["chapter"])
+                vprint(
+                    f"Found {len(image_links)} images in Chapter {chapter['chapter']}"
                 )
-                continue
 
-            # Handle chapter numbers with version numbers (e.g., 2.3 means chapter 2 version 3)
-            base_chapter = int(float(chapter_num))
-            version = None
-            if '.' in str(chapter_num):
-                version = int(str(chapter_num).split('.')[1])
-            
-            # Generate zip filename with version if needed
-            vol_name = f"vol_{base_chapter:03d}"
-            if version:
-                vol_name = f"{vol_name}-{version}"
-            zip_filename = f"{vol_name}.zip"
+                chapter_dir = os.path.join(manga_dir, f"chapter_{chapter['chapter']}")
+                downloaded_files = download_images_parallel(image_links, chapter_dir)
+                vprint(f"Successfully downloaded {len(downloaded_files)} images")
 
-            if args.zip and not args.no_skip and zip_filename in existing_zips:
-                vprint(f"Skipping existing zip archive: {zip_filename}")
-                continue
+                if args.zip:
+                    zip_base = os.path.join(manga_dir, vol_name)
+                    zip_path = f"{zip_base}.zip"
+                    print(f"Creating zip archive: {zip_path}")
+                    shutil.make_archive(zip_base, "zip", chapter_dir)
+                    shutil.rmtree(chapter_dir)
 
-            # Get image links for each chapter
-            image_links = extract_chapter_images(chapter["url"], chapter["chapter"])
-            vprint(f"Found {len(image_links)} images in Chapter {chapter['chapter']}")
+    filter_chapter = args.chapter_filter
 
-            # Create a chapter-specific directory inside the manga directory
-            chapter_dir = os.path.join(manga_dir, f"chapter_{chapter['chapter']}")
-
-            # Download images in parallel
-            vprint(f"Downloading {len(image_links)} images in parallel...")
-            downloaded_files = download_images_parallel(image_links, chapter_dir)
-            vprint(f"Successfully downloaded {len(downloaded_files)} images")
-
-            # Create zip archive if requested
-            if args.zip:
-                zip_base = os.path.join(manga_dir, vol_name)
-                zip_path = f"{zip_base}.zip"
-                print(f"Creating zip archive: {zip_path}")
-                shutil.make_archive(zip_base, "zip", chapter_dir)
-                # Remove the original directory after zipping
-                shutil.rmtree(chapter_dir)
+    if args.bulk:
+        try:
+            with open(args.bulk, "r", encoding="utf-8") as f:
+                manga_titles = [line.strip() for line in f if line.strip()]
+            print(f"Found {len(manga_titles)} manga titles in {args.bulk}")
+            for title in manga_titles:
+                process_manga_title(title, filter_chapter)
+        except FileNotFoundError:
+            print(f"Error: Could not find bulk file: {args.bulk}")
+            exit(1)
     else:
-        print("Manga not found")
+        process_manga_title(args.title, filter_chapter)
+
+    def vprint(*print_args, **kwargs):
+        """Print only if verbose mode is enabled"""
+        if args.verbose:
+            print(*print_args, **kwargs)

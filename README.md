@@ -22,6 +22,7 @@ playwright install chromium
 ## Usage
 
 Basic usage:
+
 ```bash
 python main.py
 ```
@@ -37,30 +38,44 @@ python main.py
 - `-t, --title TEXT`: Specify manga title to search for (default: wistoria)
   - Supports hyphenated titles (e.g., "The-Player-That-Cant-Level-Up")
   - Hyphens are automatically converted to spaces during search
+- `-b, --bulk FILE`: Path to text file containing manga titles (one per line)
+  - Each title can be space-separated or hyphenated
+  - Processes multiple manga titles sequentially
 
 ### Examples
 
 1. Search with hyphenated titles (hyphens will be converted to spaces):
+
 ```bash
 python main.py -t "The-Player-That-Cant-Level-Up" -z
 ```
 
 2. Download all chapters and create ZIP archives:
+
 ```bash
 python main.py -z
 ```
 
 2. Continue downloading from the latest chapter:
+
 ```bash
 python main.py -l -z
 ```
 
-3. Download chapters after chapter 46:
+3. Download multiple manga titles from a file:
+
+```bash
+python main.py -b manga_list.txt -z -v
+```
+
+4. Download chapters after chapter 46:
+
 ```bash
 python main.py --chapter-filter 46 -z
 ```
 
-4. Download to custom directory with verbose output:
+5. Download to custom directory with verbose output:
+
 ```bash
 python main.py -o "my_manga" -v -z
 ```
