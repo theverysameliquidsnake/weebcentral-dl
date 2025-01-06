@@ -25,7 +25,7 @@ def search_manga(title):
 
     # Find all manga links in search results
     search_results = parser.css("#quick-search-result a")
-    
+
     if search_results:
         # Get the first result
         first_result = search_results[0]
@@ -34,7 +34,7 @@ def search_manga(title):
         print(f"Found manga: {manga_title}")
         print(f"URL: {manga_url}")
         return manga_url
-    
+
     print("No manga found in search results")
     return None
 
@@ -73,6 +73,7 @@ def get_rss_url(manga_url):
         return f"https://weebcentral.com/series/{series_id}/rss"
     return None
 
+
 def get_chapter_list_url(manga_url):
     # Construct the full chapter list URL using the base URL
     base_url = get_base_url(manga_url)
@@ -80,43 +81,68 @@ def get_chapter_list_url(manga_url):
         return f"{base_url}full-chapter-list"
     return None
 
+
 def get_chapters_from_list(chapter_list_url):
     """Get chapter links from the full chapter list page"""
     headers = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
     }
-    
+
     chapters = []
     try:
+        vprint(f"\nDEBUG: Fetching chapter list from URL: {chapter_list_url}")
         response = requests.get(chapter_list_url, headers=headers)
         response.raise_for_status()
-        
+
         parser = HTMLParser(response.text)
         chapter_links = parser.css("a[href*='/chapters/']")
-        
+        vprint(f"DEBUG: Found {len(chapter_links)} raw chapter links on page")
+
         for link in chapter_links:
-            title = link.text().strip()
-            url = link.attributes.get("href")
+            # Get raw title and clean it
+            title = link.text()
+            # Clean up the title by removing extra whitespace and CSS/HTML content
+            cleaned_title = ' '.join([
+                line.strip() for line in title.split('\n') 
+                if line.strip() and 
+                not line.strip().startswith('.') and  # Skip CSS
+                not line.strip().startswith('{') and  # Skip CSS
+                not line.strip().startswith('2024')   # Skip dates
+            ]).strip()
             
-            # Extract chapter number from title
+            url = link.attributes.get("href")
+            vprint(f"\nDEBUG: Processing link - Cleaned Title: {cleaned_title}")
+            vprint(f"DEBUG: Link URL: {url}")
+
+            # Extract chapter number from cleaned title
             chapter_num = None
-            if "Chapter" in title:
-                parts = title.split("Chapter")
+            if "Chapter" in cleaned_title:
+                parts = cleaned_title.split("Chapter")
                 if len(parts) > 1:
                     num_part = parts[-1].strip()
+                    vprint(f"DEBUG: Found 'Chapter' format - Extracted number part: '{num_part}'")
+                    # Only use the first number found
+                    num_part = num_part.split()[0]
                     if num_part.replace(".", "").isdigit():
                         chapter_num = num_part
+                        vprint(f"DEBUG: Valid chapter number found: {chapter_num}")
             elif "Days" in title:
                 parts = title.split("Days")
                 if len(parts) > 1:
                     num_part = parts[-1].strip()
+                    vprint(
+                        f"DEBUG: Found 'Days' format - Extracted number part: '{num_part}'"
+                    )
                     if num_part.replace(".", "").isdigit():
                         chapter_num = num_part
-                        
+                        vprint(f"DEBUG: Valid chapter number found: {chapter_num}")
+            else:
+                vprint(f"DEBUG: No recognized chapter format in title")
+
             if chapter_num:
                 chapters.append({"chapter": chapter_num, "url": url})
                 vprint(f"DEBUG: Added chapter {chapter_num} from {url}")
-        
+
         # Sort chapters numerically
         sorted_chapters = sorted(
             chapters,
@@ -126,7 +152,7 @@ def get_chapters_from_list(chapter_list_url):
         )
         vprint(f"\nDEBUG: Final chapter count from list: {len(sorted_chapters)}")
         return sorted_chapters
-        
+
     except Exception as e:
         print(f"Error getting chapter list: {str(e)}")
         return []
@@ -134,33 +160,33 @@ def get_chapters_from_list(chapter_list_url):
 
 def get_chapter_links(rss_url):
     import xmltodict
-    
+
     headers = {
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
     }
 
     response = requests.get(rss_url, headers=headers)
     response.raise_for_status()
-    
+
     # Parse XML response
     rss_data = xmltodict.parse(response.text)
-    
+
     chapters = []
-    items = rss_data['rss']['channel'].get('item', [])
+    items = rss_data["rss"]["channel"].get("item", [])
     if not isinstance(items, list):
         items = [items]
-        
+
     vprint(f"\nDEBUG: Found {len(items)} items in RSS feed")
-    
+
     for item in items:
-        title = item['title']
-        url = item['link']
+        title = item["title"]
+        url = item["link"]
         vprint(f"DEBUG: Processing RSS item: {title} -> {url}")
-        
+
         # Extract chapter number from title
         # Handle both "Chapter X" and "Days X" formats
         chapter_num = None
-        
+
         # For titles like "Sakamoto Days Days 196"
         if "Days" in title:
             parts = title.split("Days")
@@ -175,11 +201,11 @@ def get_chapter_links(rss_url):
                 num_part = parts[-1].strip()
                 if num_part.replace(".", "").isdigit():
                     chapter_num = num_part
-                    
+
         if chapter_num:
             chapters.append({"chapter": chapter_num, "url": url})
             vprint(f"DEBUG: Added chapter {chapter_num} from {url}")
-    
+
     # Sort chapters numerically
     sorted_chapters = sorted(
         chapters,
@@ -283,8 +309,11 @@ if __name__ == "__main__":
 
     if args.latest and os.path.exists(manga_dir):
         # Find zip files only in this manga's directory
-        zip_files = [f for f in os.listdir(manga_dir) 
-                    if f.startswith("vol_") and f.endswith(".zip")]
+        zip_files = [
+            f
+            for f in os.listdir(manga_dir)
+            if f.startswith("vol_") and f.endswith(".zip")
+        ]
 
         if zip_files:
             chapter_numbers = []
@@ -318,14 +347,22 @@ if __name__ == "__main__":
             existing_zips = {f for f in os.listdir(manga_dir) if f.endswith(".zip")}
             vprint(f"Found {len(existing_zips)} existing zip files")
     if manga_url:
-        # Check if manga directory exists to determine which method to use
+        # Check if manga directory exists AND contains chapter files/zips
+        has_existing_chapters = False
         if os.path.exists(manga_dir):
-            print("Existing manga folder found, using RSS feed for updates...")
+            # Check for any zip files or chapter directories
+            dir_contents = os.listdir(manga_dir)
+            has_existing_chapters = any(
+                f.startswith(("vol_", "chapter_")) for f in dir_contents
+            )
+
+        if has_existing_chapters:
+            print("Existing manga chapters found, using RSS feed for updates...")
             rss_url = get_rss_url(manga_url)
             print(f"RSS URL: {rss_url}")
             chapters = get_chapter_links(rss_url)
         else:
-            print("New manga, fetching full chapter list...")
+            print("New manga or empty folder, fetching full chapter list...")
             chapter_list_url = get_chapter_list_url(manga_url)
             print(f"Chapter list URL: {chapter_list_url}")
             chapters = get_chapters_from_list(chapter_list_url)
@@ -369,13 +406,20 @@ if __name__ == "__main__":
                 )
                 continue
 
-            # Check if zip exists before downloading (including -1 variant)
-            vol_name = f"vol_{int(chapter_num):03d}"
+            # Handle chapter numbers with version numbers (e.g., 2.3 means chapter 2 version 3)
+            base_chapter = int(float(chapter_num))
+            version = None
+            if '.' in str(chapter_num):
+                version = int(str(chapter_num).split('.')[1])
+            
+            # Generate zip filename with version if needed
+            vol_name = f"vol_{base_chapter:03d}"
+            if version:
+                vol_name = f"{vol_name}-{version}"
             zip_filename = f"{vol_name}.zip"
-            zip_filename_alt = f"{vol_name}-1.zip"
 
-            if args.zip and not args.no_skip and (zip_filename in existing_zips or zip_filename_alt in existing_zips):
-                vprint(f"Skipping existing zip archive: {zip_filename} (or variant)")
+            if args.zip and not args.no_skip and zip_filename in existing_zips:
+                vprint(f"Skipping existing zip archive: {zip_filename}")
                 continue
 
             # Get image links for each chapter
