@@ -118,26 +118,26 @@ def get_chapters_from_list(chapter_list_url):
             chapter_num = None
             if "Chapter" in cleaned_title:
                 parts = cleaned_title.split("Chapter")
-                if len(parts) > 1:
-                    num_part = parts[-1].strip()
-                    vprint(f"DEBUG: Found 'Chapter' format - Extracted number part: '{num_part}'")
-                    # Only use the first number found
-                    num_part = num_part.split()[0]
-                    if num_part.replace(".", "").isdigit():
-                        chapter_num = num_part
-                        vprint(f"DEBUG: Valid chapter number found: {chapter_num}")
-            elif "Days" in title:
-                parts = title.split("Days")
-                if len(parts) > 1:
-                    num_part = parts[-1].strip()
-                    vprint(
-                        f"DEBUG: Found 'Days' format - Extracted number part: '{num_part}'"
-                    )
-                    if num_part.replace(".", "").isdigit():
-                        chapter_num = num_part
-                        vprint(f"DEBUG: Valid chapter number found: {chapter_num}")
+                format_type = "Chapter"
+            elif "Episode" in cleaned_title:
+                parts = cleaned_title.split("Episode")
+                format_type = "Episode"
+            elif "Days" in cleaned_title:
+                parts = cleaned_title.split("Days")
+                format_type = "Days"
             else:
+                parts = None
+                format_type = None
                 vprint(f"DEBUG: No recognized chapter format in title")
+            
+            if parts and len(parts) > 1:
+                num_part = parts[-1].strip()
+                vprint(f"DEBUG: Found '{format_type}' format - Extracted number part: '{num_part}'")
+                # Only use the first number found
+                num_part = num_part.split()[0]
+                if num_part.replace(".", "").isdigit():
+                    chapter_num = num_part
+                    vprint(f"DEBUG: Valid chapter number found: {chapter_num}")
 
             if chapter_num:
                 chapters.append({"chapter": chapter_num, "url": url})
