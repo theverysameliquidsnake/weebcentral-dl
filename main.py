@@ -73,6 +73,64 @@ def get_rss_url(manga_url):
         return f"https://weebcentral.com/series/{series_id}/rss"
     return None
 
+def get_chapter_list_url(manga_url):
+    # Construct the full chapter list URL using the base URL
+    base_url = get_base_url(manga_url)
+    if base_url:
+        return f"{base_url}full-chapter-list"
+    return None
+
+def get_chapters_from_list(chapter_list_url):
+    """Get chapter links from the full chapter list page"""
+    headers = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+    }
+    
+    chapters = []
+    try:
+        response = requests.get(chapter_list_url, headers=headers)
+        response.raise_for_status()
+        
+        parser = HTMLParser(response.text)
+        chapter_links = parser.css("a[href*='/chapters/']")
+        
+        for link in chapter_links:
+            title = link.text().strip()
+            url = link.attributes.get("href")
+            
+            # Extract chapter number from title
+            chapter_num = None
+            if "Chapter" in title:
+                parts = title.split("Chapter")
+                if len(parts) > 1:
+                    num_part = parts[-1].strip()
+                    if num_part.replace(".", "").isdigit():
+                        chapter_num = num_part
+            elif "Days" in title:
+                parts = title.split("Days")
+                if len(parts) > 1:
+                    num_part = parts[-1].strip()
+                    if num_part.replace(".", "").isdigit():
+                        chapter_num = num_part
+                        
+            if chapter_num:
+                chapters.append({"chapter": chapter_num, "url": url})
+                vprint(f"DEBUG: Added chapter {chapter_num} from {url}")
+        
+        # Sort chapters numerically
+        sorted_chapters = sorted(
+            chapters,
+            key=lambda x: float(x["chapter"])
+            if x["chapter"].replace(".", "").isdigit()
+            else 0,
+        )
+        vprint(f"\nDEBUG: Final chapter count from list: {len(sorted_chapters)}")
+        return sorted_chapters
+        
+    except Exception as e:
+        print(f"Error getting chapter list: {str(e)}")
+        return []
+
 
 def get_chapter_links(rss_url):
     import xmltodict
@@ -260,10 +318,17 @@ if __name__ == "__main__":
             existing_zips = {f for f in os.listdir(manga_dir) if f.endswith(".zip")}
             vprint(f"Found {len(existing_zips)} existing zip files")
     if manga_url:
-        rss_url = get_rss_url(manga_url)
-        print(f"RSS URL: {rss_url}")
-
-        chapters = get_chapter_links(rss_url)
+        # Check if manga directory exists to determine which method to use
+        if os.path.exists(manga_dir):
+            print("Existing manga folder found, using RSS feed for updates...")
+            rss_url = get_rss_url(manga_url)
+            print(f"RSS URL: {rss_url}")
+            chapters = get_chapter_links(rss_url)
+        else:
+            print("New manga, fetching full chapter list...")
+            chapter_list_url = get_chapter_list_url(manga_url)
+            print(f"Chapter list URL: {chapter_list_url}")
+            chapters = get_chapters_from_list(chapter_list_url)
 
         # Print summary of chapter range
         if chapters:
