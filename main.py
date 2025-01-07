@@ -260,6 +260,11 @@ def extract_chapter_images(chapter_url, chapter_num):
             browser.close()
 
 
+def vprint(*print_args, **kwargs):
+    """Print only if verbose mode is enabled"""
+    if args.verbose:
+        print(*print_args, **kwargs)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Manga downloader script")
     parser.add_argument(
@@ -446,8 +451,23 @@ if __name__ == "__main__":
 
     if args.bulk:
         try:
-            with open(args.bulk, "r", encoding="utf-8") as f:
-                manga_titles = [line.strip() for line in f if line.strip()]
+            # Try UTF-8 first, then fallback to other encodings
+            encodings = ['utf-8', 'utf-16', 'latin-1', 'cp1252']
+            manga_titles = None
+            
+            for encoding in encodings:
+                try:
+                    with open(args.bulk, "r", encoding=encoding) as f:
+                        manga_titles = [line.strip() for line in f if line.strip()]
+                    print(f"Successfully read file using {encoding} encoding")
+                    break
+                except UnicodeDecodeError:
+                    continue
+            
+            if manga_titles is None:
+                print("Error: Could not read file with any supported encoding")
+                exit(1)
+                
             print(f"Found {len(manga_titles)} manga titles in {args.bulk}")
             for title in manga_titles:
                 process_manga_title(title, filter_chapter)
@@ -457,7 +477,3 @@ if __name__ == "__main__":
     else:
         process_manga_title(args.title, filter_chapter)
 
-    def vprint(*print_args, **kwargs):
-        """Print only if verbose mode is enabled"""
-        if args.verbose:
-            print(*print_args, **kwargs)
