@@ -2,6 +2,7 @@ import requests
 import os
 import argparse
 import shutil
+import tomli
 from selectolax.parser import HTMLParser
 from download_utils import download_images_parallel
 from playwright.sync_api import sync_playwright
@@ -260,10 +261,29 @@ def extract_chapter_images(chapter_url, chapter_num):
             browser.close()
 
 
+def send_error_notification(error_message, manga_title=None):
+    """Send error notification to the notification endpoint"""
+    try:
+        if manga_title:
+            error_message = f"Error downloading {manga_title}: {error_message}"
+
+        # Load config file
+        with open("config.toml", "rb") as f:
+            config = tomli.load(f)
+
+        notification_url = config["ntfy"]["ntfy_url"]
+        response = requests.post(notification_url, data={"message": error_message})
+        response.raise_for_status()
+        vprint(f"Sent error notification: {error_message}")
+    except Exception as e:
+        print(f"Failed to send error notification: {str(e)}")
+
+
 def vprint(*print_args, **kwargs):
     """Print only if verbose mode is enabled"""
     if args.verbose:
         print(*print_args, **kwargs)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Manga downloader script")
@@ -315,13 +335,21 @@ if __name__ == "__main__":
 
     def process_manga_title(title, filter_chapter=None):
         """Process a single manga title"""
-        # Replace hyphens with spaces in the manga title
-        search_title = title.replace("-", " ")
-        print(f"\nProcessing manga: {search_title}")
+        try:
+            # Replace hyphens with spaces in the manga title
+            search_title = title.replace("-", " ")
+            print(f"\nProcessing manga: {search_title}")
 
-        manga_url = search_manga(search_title)
-        if not manga_url:
-            print(f"Could not find manga: {search_title}")
+            manga_url = search_manga(search_title)
+            if not manga_url:
+                error_msg = f"Could not find manga: {search_title}"
+                print(error_msg)
+                send_error_notification(error_msg)
+                return
+        except Exception as e:
+            error_msg = f"Error searching for manga: {str(e)}"
+            print(error_msg)
+            send_error_notification(error_msg)
             return
 
         # Create manga-specific directory using the slug
@@ -431,14 +459,41 @@ if __name__ == "__main__":
                     vprint(f"Skipping existing zip archive: {zip_filename}")
                     continue
 
-                image_links = extract_chapter_images(chapter["url"], chapter["chapter"])
-                vprint(
-                    f"Found {len(image_links)} images in Chapter {chapter['chapter']}"
-                )
+                try:
+                    image_links = extract_chapter_images(
+                        chapter["url"], chapter["chapter"]
+                    )
+                    if not image_links:
+                        error_msg = f"No images found in Chapter {chapter['chapter']}"
+                        print(error_msg)
+                        send_error_notification(error_msg, search_title)
+                        continue
 
-                chapter_dir = os.path.join(manga_dir, f"chapter_{chapter['chapter']}")
-                downloaded_files = download_images_parallel(image_links, chapter_dir)
-                vprint(f"Successfully downloaded {len(downloaded_files)} images")
+                    vprint(
+                        f"Found {len(image_links)} images in Chapter {chapter['chapter']}"
+                    )
+
+                    chapter_dir = os.path.join(
+                        manga_dir, f"chapter_{chapter['chapter']}"
+                    )
+                    downloaded_files = download_images_parallel(
+                        image_links, chapter_dir
+                    )
+
+                    if not downloaded_files:
+                        error_msg = f"Failed to download any images for Chapter {chapter['chapter']}"
+                        print(error_msg)
+                        send_error_notification(error_msg, search_title)
+                        continue
+
+                    vprint(f"Successfully downloaded {len(downloaded_files)} images")
+                except Exception as e:
+                    error_msg = (
+                        f"Error processing Chapter {chapter['chapter']}: {str(e)}"
+                    )
+                    print(error_msg)
+                    send_error_notification(error_msg, search_title)
+                    continue
 
                 if args.zip:
                     zip_base = os.path.join(manga_dir, vol_name)
@@ -452,9 +507,9 @@ if __name__ == "__main__":
     if args.bulk:
         try:
             # Try UTF-8 first, then fallback to other encodings
-            encodings = ['utf-8', 'utf-16', 'latin-1', 'cp1252']
+            encodings = ["utf-8", "utf-16", "latin-1", "cp1252"]
             manga_titles = None
-            
+
             for encoding in encodings:
                 try:
                     with open(args.bulk, "r", encoding=encoding) as f:
@@ -463,11 +518,11 @@ if __name__ == "__main__":
                     break
                 except UnicodeDecodeError:
                     continue
-            
+
             if manga_titles is None:
                 print("Error: Could not read file with any supported encoding")
                 exit(1)
-                
+
             print(f"Found {len(manga_titles)} manga titles in {args.bulk}")
             for title in manga_titles:
                 process_manga_title(title, filter_chapter)
@@ -476,4 +531,3 @@ if __name__ == "__main__":
             exit(1)
     else:
         process_manga_title(args.title, filter_chapter)
-

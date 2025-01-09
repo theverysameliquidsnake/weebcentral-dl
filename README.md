@@ -11,6 +11,7 @@ A Python script for downloading manga chapters from weebcentral.com with support
 - Filter chapters by number
 - Verbose debugging output
 - Skip existing downloads
+- Error notifications via ntfy
 
 ## Requirements
 
@@ -103,9 +104,19 @@ manga_downloads/
 - Network errors are handled gracefully
 - Duplicate downloads are prevented
 
+## Error Notifications
+
+The script supports error notifications through ntfy. When errors occur during:
+- Manga search failures
+- Chapter processing issues
+- Image download failures
+
+Notifications are sent to the configured ntfy endpoint specified in `config.toml`.
+
 ## Dependencies
 
 - requests: HTTP requests
 - selectolax: HTML parsing
 - playwright: Dynamic web content loading
 - concurrent.futures: Parallel downloading
+- tomli: TOML configuration file parsing

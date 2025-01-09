@@ -3,3 +3,4 @@
 .aider*
 /.venv
 __pycache__
+config.toml
