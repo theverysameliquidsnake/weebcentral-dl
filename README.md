@@ -106,12 +106,21 @@ manga_downloads/
 
 ## Error Notifications
 
-The script supports error notifications through ntfy. When errors occur during:
+The script supports optional error notifications through ntfy. When errors occur during:
 - Manga search failures
 - Chapter processing issues
 - Image download failures
 
-Notifications are sent to the configured ntfy endpoint specified in `config.toml`.
+Notifications are sent to the configured ntfy endpoint specified in `config.toml`. To enable notifications:
+
+1. Create a `config.toml` file in the script directory
+2. Add your ntfy URL:
+```toml
+[ntfy]
+ntfy_url = "your_ntfy_url_here"
+```
+
+Notifications are optional - if `config.toml` is missing or the URL is empty, the script will run without sending notifications.
 
 ## Dependencies
 

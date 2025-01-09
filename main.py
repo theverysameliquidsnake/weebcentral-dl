@@ -262,14 +262,23 @@ def extract_chapter_images(chapter_url, chapter_num):
 
 
 def send_error_notification(error_message, manga_title=None):
-    """Send error notification to the notification endpoint"""
+    """Send error notification to the notification endpoint if configured"""
     try:
         if manga_title:
             error_message = f"Error downloading {manga_title}: {error_message}"
 
-        # Load config file
-        with open("config.toml", "rb") as f:
-            config = tomli.load(f)
+        # Try to load config file
+        try:
+            with open("config.toml", "rb") as f:
+                config = tomli.load(f)
+        except (FileNotFoundError, tomli.TOMLDecodeError):
+            vprint("No valid config.toml found - skipping notification")
+            return
+
+        # Check if ntfy section and URL exist and are not empty
+        if not config.get("ntfy", {}).get("ntfy_url"):
+            vprint("No ntfy URL configured - skipping notification")
+            return
 
         notification_url = config["ntfy"]["ntfy_url"]
         response = requests.post(notification_url, data={"message": error_message})
