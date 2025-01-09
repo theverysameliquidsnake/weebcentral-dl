@@ -3,6 +3,7 @@ import os
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+
 def download_single_image(url, save_dir, headers=None):
     """
     Download an image from a URL and save it to a specified directory.
@@ -50,33 +51,34 @@ def download_single_image(url, save_dir, headers=None):
         print(f"Error downloading image: {e}")
         return None
 
+
 def download_images_parallel(urls, save_dir, max_workers=4):
     """
     Download multiple images in parallel using ThreadPoolExecutor.
-    
+
     Args:
         urls (list): List of image URLs to download
         save_dir (str): Directory to save the images
         max_workers (int): Maximum number of concurrent downloads
-        
+
     Returns:
         list: List of successfully downloaded image paths
     """
     downloaded_files = []
-    
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_url = {
-            executor.submit(download_single_image, url, save_dir): url 
-            for url in urls
+            executor.submit(download_single_image, url, save_dir): url for url in urls
         }
-        
+
         for future in as_completed(future_to_url):
             url = future_to_url[future]
             try:
                 result = future.result()
                 if result:
                     downloaded_files.append(result)
+                    print(f"Successfully downloaded: {url}")
             except Exception as e:
-                pass  # Silently handle errors in parallel download
-    
+                print(f"Failed to download {url}: {str(e)}")
+
     return downloaded_files
