@@ -2,52 +2,26 @@ package main
 
 import (
 	"fmt"
-	"time"
-	"net/http"
 	"strings"
 	"log"
-	
+	"errors"
+
 	"github.com/PuerkitoBio/goquery"
+	"github.com/playwright-community/playwright-go"
 )
 
-type manga struct {
-	id string
-	title string
-	slug string
-	baseUrl string
-	rssUrl string
-	chapterListUrl string
-}	
-
-func searchManga(title string) string {
-	// Construct request
-	const url = "https://weebcentral.com/search/simple"
-	const method = "POST"
+func searchManga(title string) (string, error) {
+	// Request params
+	url := "https://weebcentral.com/search/simple"
+	method := "POST"
+	headers := map[string]string{
+		"Content-Type":"application/x-www-form-urlencoded",
+	}
 	payload := strings.NewReader(fmt.Sprintf("text=%s", title))
-	
-	req, err := http.NewRequest(method, url, payload)
-	if err != nil {
-		log.Fatalln("Error creating request:", err)
-	}
 
-	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0")
-
-	client := http.Client{
-		Timeout: time.Second * 10,
-	}
-	
-	// Make request
-	resp, err := client.Do(req)
+	doc, err := sendRequest(method, url, headers, payload)
 	if err != nil {
-		log.Fatalln("Error making request:", err)
-	}
-	defer resp.Body.Close()
-	
-	// Parse HTML response
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		log.Fatalln("Error reading response body:", err)
+		return "", err
 	}
 
 	// Find all manga links in search results
@@ -60,93 +34,142 @@ func searchManga(title string) string {
 			mangaTitle := strings.TrimSpace(firstResult.Find("div.flex-1").First().Text())
 			log.Println("Found manga:", mangaTitle)
 			log.Println("URL:", mangaUrl)
-			return mangaUrl
+			return mangaUrl, nil
 		}
 	}
 	
-	log.Println("No manga found in search results")
-	return ""
+	return "", errors.New("No manga found in search results")
 }
 
-func getMangaSlug(mangaUrl string) string {
-	// Extract the manga title slug from the URL
-	parts := strings.Split(mangaUrl, "/")
-	// URL format: https://weebcentral.com/series/ID/SLUG
-	if len(parts) >= 6 {
-		return parts[len(parts) - 1]
-	}
-
-	return ""
-}
-
-func getBaseUrl(mangaUrl string) string {
-	// Get the base URL without the title slug
-	seriesId, err := extractSeriesId(mangaUrl)
-	if err == nil {
-		return fmt.Sprintf("https://weebcentral.com/series/%s/", seriesId)
-	}
-
-	return ""
-}
-
-func getRssUrl(mangaUrl string) string {
-	// Construct the RSS feed URL using the series ID
-	seriesId, err := extractSeriesId(mangaUrl)
-	if err == nil {
-		return fmt.Sprintf("https://weebcentral.com/series/%s/rss", seriesId)
+func getChaptersFromList(chapterListUrl string) (map[string]string, error) {
+	// Request params
+	method := "GET"
+	
+	doc, err := sendRequest(method, chapterListUrl, nil, nil)
+	if err != nil {
+		return nil, err
 	}
 	
-	return ""
-}
-
-func getChapterListUrl(mangaUrl string) string {
-	// Construct the full chapter list URL using the base URL
-	baseUrl := getBaseUrl(mangaUrl)
-	if len(baseUrl) > 0 {
-		return fmt.Sprintf("%sfull-chapter-list", baseUrl)
-	}
-
-	return ""
-}
-
-func getChaptersFromList(chapterListUrl string) {
-	// Get chaptr links from the full chapter list page
-	// Construct request
-	const method = "GET"
-	
-	req, err := http.NewRequest(method, chapterListUrl, nil)
-	if err != nil {
-		log.Fatalln("Error creating request:", err)
-	}
-
-	req.Header.Add("User-Agent", "Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0")
-
-	client := http.Client{
-		Timeout: time.Second * 10,
-	}
-
-	// Make request
-	resp, err := client.Do(req)
-	if err != nil {
-		log.Fatalln("Error making request:", err)
-	}
-	defer resp.Body.Close()
-
-	// Parse HTML response
-	doc, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		log.Fatalln("Error reading response body:", err)
-	}
-
+	// Search for chapters
 	chapterLinks := doc.Find("a[href*='/chapters/']")
 	if chapterLinks.Length() > 0 {
 		log.Println(fmt.Sprintf("Found %d raw chapter links on page", chapterLinks.Length()))
-		// Continue here
+		chapters := make(map[string]string)
+		chapterLinks.Each(func(index int, link *goquery.Selection) {
+			chapterLink, exists := link.Attr("href")
+			if exists {
+				title := link.Find("a[href*='/chapters/'] > span:nth-child(2) > span:nth-child(1)").Text()
+				chapters[title] = chapterLink
+			}
+		})
+
+		return chapters, nil
 	}
+
+	return nil, errors.New("No chapters found for this manga")
+}
+
+func extractChapterImageLinks(chapterUrl string) ([]string, error) {
+	// Init playwright
+	pw, err := playwright.Run()
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not launch playwright:%s", err))
+	}
+
+	browser, err := pw.Chromium.Launch(
+		playwright.BrowserTypeLaunchOptions {
+			Headless: playwright.Bool(true),
+		},
+	)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not launch browser:%s", err))
+	}
+
+	page, err := browser.NewPage()
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not create page:%s", err))
+	}
+
+	err = page.SetViewportSize(1920, 1080)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not set page height and width:%s", err))
+	}
+
+	// Navigate to chapter page and collect image links
+	_, err = page.Goto(chapterUrl, playwright.PageGotoOptions {
+		WaitUntil: playwright.WaitUntilStateNetworkidle,
+		Timeout: playwright.Float(60000),
+	})
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not navigate to provided URL:%s", err))
+	}
+
+	_, err = page.WaitForSelector("img", playwright.PageWaitForSelectorOptions {
+		State: playwright.WaitForSelectorStateVisible,
+		Timeout: playwright.Float(30000),
+	})
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not load page images:%s", err))
+	}
+
+	// Extract all images
+	images, err := page.Locator("img").All()
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not extract page images:%s", err))
+	}
+	imageLinks := []string{}
+	for index := range images {
+		src, err := images[index].GetAttribute("src")
+		if err != nil {
+			return nil, errors.New(fmt.Sprintf("Could not get image src:%s", err))
+		}
+		
+		srcLower := strings.ToLower(src)
+		if strings.HasSuffix(srcLower, ".png") && !strings.HasSuffix(srcLower, "/static/images/brand.png") {
+			imageLinks = append(imageLinks, src)
+		}
+	}
+
+	// Close browser and playwright
+	err = browser.Close()
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not close browser:%s", err))
+	}
+
+	err = pw.Stop()
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("Could not stop playwright:%s", err))
+	}
+
+	return imageLinks, nil
 }
 
 func main() {
-	mangaUrl := searchManga("Dandadan")
-	chapterListUrl := getChapterListUrl(mangaUrl)
-	getChaptersFromList(chapterListUrl)
+	// Search for URL for provided title
+	mangaUrl, err := searchManga("Dandadan")
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Initiate start struct
+	manga, err := constructManga(mangaUrl)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Retrieve manga chapters with URL
+	chapters, err := getChaptersFromList(manga.chapterListUrl)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	manga.chapters = chapters
+
+	// Get images for random chapter test
+	images, err := extractChapterImageLinks(manga.chapters["Chapter 1"])
+	if err != nil {
+		log.Fatalln(err)
+	}
+	
+	// Download random image test
+	err = downloadImage(images[0], strings.Split(images[0], "/")[0])
 }
