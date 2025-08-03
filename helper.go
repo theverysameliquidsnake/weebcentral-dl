@@ -4,29 +4,18 @@ import (
 	"errors"
 	"strings"
 	"regexp"
-	"net/http"
 	"time"
+	"net/http"
 	"io"
 	"fmt"
-	"os"
-
 	"github.com/PuerkitoBio/goquery"
-	"github.com/playwright-community/playwright-go"
 )
-
-type Manga struct {
-	id string
-	slug string
-	baseUrl string
-	chapterListUrl string
-	chapters map[string]string
-}
 
 func sendRequest(method string, url string, headers map[string]string, body io.Reader) (*goquery.Document, error) {
 	// Construct request with some default fields
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Error creating request:%s"))
+		return nil, errors.New(fmt.Sprintf("Error creating request:%s", err))
 	}
 
 	// Add required and optional headers
@@ -57,16 +46,16 @@ func sendRequest(method string, url string, headers map[string]string, body io.R
 	return doc, nil
 }
 
-func constructManga(mangaUrl string) (*Manga, error) {
+func extractAttrFromUrl(mangaUrl string) (string, string, error) {
 	if len(mangaUrl) > 0 {
-		manga := Manga{}
+		var id, slug string
 		// Extract the series ID from the URL
 		// URL format: https://weebcentral.com/series/ID/SLUG
 		parts := strings.Split(mangaUrl, "/")
-		for index := range parts {
+		for _, part := range parts {
 			// Series IDs are 26 characters long
-			if len(parts[index]) == 26 && regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(parts[index]) {
-				manga.id = parts[index]
+			if len(part) == 26 && regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(part) {
+				id = part
 				break
 			}
 		}
@@ -74,54 +63,11 @@ func constructManga(mangaUrl string) (*Manga, error) {
 		// Extract the manga title slug from the URL
 		// URL format: https://weebcentral.com/series/ID/SLUG
 		if len(parts) >= 6 {
-			manga.slug = parts[len(parts) - 1]
+			slug = parts[len(parts) - 1]
 		}
 
-		// Get the base URL without the title slug
-		manga.baseUrl = fmt.Sprintf("https://weebcentral.com/series/%s/", manga.id)
-
-		// Construct the full chapter list URL using the base URL
-		manga.chapterListUrl = fmt.Sprintf("%sfull-chapter-list", manga.baseUrl)
-
-		return &manga, nil
+		return id, slug, nil
 	}
 
-	return nil, errors.New("Cannot construct Manga struct: No URL provided")
-}
-
-func downloadImage(imageUrl string, filePath string) error {
-	// Get image from request
-	resp, err := http.Get(imageUrl)
-	if err != nil {
-		// add handler
-	}
-	defer resp.Body.Close()
-	
-	// Create file
-	out, err := os.Create(filePath)
-	if err != nil {
-		// add handler
-	}
-	defer out.Close()
-
-	// Write
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		// add handler
-	}
-
-	return nil
-}
-
-func installPlaywright() error {
-	// Install playwright dependencies if it is missing
-	installOptions := playwright.RunOptions {
-		Browsers: []string{"chromium"},
-	}
-	err := playwright.Install(&installOptions)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Could not install Playwright:%s", err))
-	}
-
-	return nil
+	return "", "", errors.New("Cannot extract manga id and slug: No URL provided")
 }
