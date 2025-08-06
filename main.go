@@ -8,13 +8,20 @@ import (
 func main() {
 	// Verify provided args
 	args := getArgs()
-	if !args.hasValidArg || args.help {
+	if !args.hasEnoughArgs || args.help {
 		printHelp()
 		return
 	}
 
 	// Search manga
 	if len(args.title) > 0 {
+		// Install Playwright dependencies
+		err := installPlaywright()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		
+		// Begin searching process
 		mangaUrl, err := searchManga(args.title)
 		if err != nil {
 			log.Fatalln(err)
@@ -31,20 +38,29 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		fmt.Println(slug, len(chapters), chapters["Chapter 1"])
-	}
 
-	/*// Retrieve manga chapters with URL
-	chapters, err := getChaptersFromList(manga.chapterListUrl)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	manga.chapters = chapters
+		// Filter chapters if prefix, first or last is set
+		for chapterTitle := range chapters {
+			isToDownload, err := isChapterToDownload(args.prefix, args.first, args.last, chapterTitle)
+			if err != nil {
+				log.Fatalln(err)
+			}
+			if !isToDownload {
+				delete(chapters, chapterTitle)
+			}
+		}
+		
+		// Download chapters to manga title folder
+		downloadFolderPath, err := resolveDownloadFolderPath(slug, args.output)
+		if err != nil {
+			log.Fatalln(err)
+		}
 
-	// Get images for random chapter test
-	err = downloadChapter(manga.chapters["Chapter 1"])
-	if err != nil {
-		log.Fatalln(err)
+		for chapterTitle, chapterUrl := range chapters {
+			err = downloadChapter(downloadFolderPath, chapterTitle, chapterUrl)
+			if err != nil {
+				log.Fatalln(err)
+			}
+		}	
 	}
-	
-	// Download random image test err = downloadImage(images[0], "dan/dan.png")*/ }
+}

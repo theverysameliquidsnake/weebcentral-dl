@@ -3,11 +3,14 @@ package main
 import (
 	"errors"
 	"strings"
+	"strconv"
 	"regexp"
 	"time"
 	"net/http"
 	"io"
+	"os"
 	"fmt"
+	"archive/zip"
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -70,4 +73,66 @@ func extractAttrFromUrl(mangaUrl string) (string, string, error) {
 	}
 
 	return "", "", errors.New("Cannot extract manga id and slug: No URL provided")
+}
+
+func isChapterToDownload(prefix string, first float32, last float32, chapterTitle string) (bool, error) {
+	// Split chapter title to prefix and number
+	parts := strings.Split(chapterTitle, " ")
+	
+	chapterNumber, err := strconv.ParseFloat(parts[len(parts) - 1], 32)
+	if err != nil {
+		// add
+		return false, errors.New("Could not parse volume number from title: ")
+	}
+
+	chapterPrefix := strings.TrimSpace(strings.Join(parts[:len(parts) - 1], " "))
+
+	// Check if prefix match
+	if len(prefix) > 0 && strings.ToLower(prefix) != strings.ToLower(chapterPrefix) {
+		return false, nil
+	}
+
+	// Check if first match
+	if first != -1 && first > chapterNumber {
+		return false, nil
+	}
+
+	// Check if last match
+	if last != -1 && last < chapterNumber {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+func createDirectory(dirPath string) error {
+	err := os.MkdirAll(dirPath, os.ModePerm)
+	if err != nil {
+		// add handler
+		fmt.Println(err)
+	}
+
+	return nil
+}
+
+func resolveDownloadFolderPath(mangaSlug string, providedOutputPath string) (string, error) {
+	var downloadFolderPath string
+	if len(providedOutputPath) > 0 {
+		downloadFolderPath = providedOutputPath
+		// Replace ~ with proper home directory path
+		if strings.HasPrefix(downloadFolderPath, "~") {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				// add handler
+			}
+			downloadFolderPath = strings.Replace(downloadFolderPath, "~", homeDir, 1)
+		}
+	}
+
+	return filepath.Join(downloadFolderPath, mangaSlug), nil
+}
+
+
+func concatErrorString(prefix string, err error) string {
+	return fmt.Sprintf(prefix, err)
 }
