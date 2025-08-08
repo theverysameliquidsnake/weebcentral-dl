@@ -10,7 +10,8 @@ import (
 	"io"
 	"os"
 	"fmt"
-	"archive/zip"
+	"log"
+	"path/filepath"
 	"github.com/PuerkitoBio/goquery"
 )
 
@@ -18,7 +19,7 @@ func sendRequest(method string, url string, headers map[string]string, body io.R
 	// Construct request with some default fields
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Error creating request:%s", err))
+		return nil, errors.New(concatErrorString("Error creating request: %s", err))
 	}
 
 	// Add required and optional headers
@@ -28,7 +29,6 @@ func sendRequest(method string, url string, headers map[string]string, body io.R
 			req.Header.Add(key, value)
 		}
 	}
-
 	client := http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -36,14 +36,14 @@ func sendRequest(method string, url string, headers map[string]string, body io.R
 	// Send request
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Error sending request:%s", err))
+		return nil, errors.New(concatErrorString("Error sending request: %s", err))
 	}
 	defer resp.Body.Close()
 
 	// Parse HTML response
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Error reading response body:%s", err))
+		return nil, errors.New(concatErrorString("Error reading response body: %s", err))
 	}
 	
 	return doc, nil
@@ -75,15 +75,15 @@ func extractAttrFromUrl(mangaUrl string) (string, string, error) {
 	return "", "", errors.New("Cannot extract manga id and slug: No URL provided")
 }
 
-func isChapterToDownload(prefix string, first float32, last float32, chapterTitle string) (bool, error) {
+func isChapterToDownload(prefix string, first float32, isFirstSet bool, last float32, isLastSet bool, chapterTitle string) (bool, error) {
 	// Split chapter title to prefix and number
 	parts := strings.Split(chapterTitle, " ")
 	
-	chapterNumber, err := strconv.ParseFloat(parts[len(parts) - 1], 32)
+	tmpChapterNumber, err := strconv.ParseFloat(parts[len(parts) - 1], 32)
 	if err != nil {
-		// add
-		return false, errors.New("Could not parse volume number from title: ")
+		return false, errors.New(concatErrorString("Could not parse volume number from chapter title: %s", err))
 	}
+	chapterNumber := float32(tmpChapterNumber)
 
 	chapterPrefix := strings.TrimSpace(strings.Join(parts[:len(parts) - 1], " "))
 
@@ -93,12 +93,12 @@ func isChapterToDownload(prefix string, first float32, last float32, chapterTitl
 	}
 
 	// Check if first match
-	if first != -1 && first > chapterNumber {
+	if isFirstSet && first > chapterNumber {
 		return false, nil
 	}
 
 	// Check if last match
-	if last != -1 && last < chapterNumber {
+	if isLastSet && last < chapterNumber {
 		return false, nil
 	}
 
@@ -108,8 +108,7 @@ func isChapterToDownload(prefix string, first float32, last float32, chapterTitl
 func createDirectory(dirPath string) error {
 	err := os.MkdirAll(dirPath, os.ModePerm)
 	if err != nil {
-		// add handler
-		fmt.Println(err)
+		return errors.New(concatErrorString("Could not create a directory: %s", err))
 	}
 
 	return nil
@@ -123,7 +122,7 @@ func resolveDownloadFolderPath(mangaSlug string, providedOutputPath string) (str
 		if strings.HasPrefix(downloadFolderPath, "~") {
 			homeDir, err := os.UserHomeDir()
 			if err != nil {
-				// add handler
+				return "", errors.New(concatErrorString("Could not resolve home directory path: %s", err))
 			}
 			downloadFolderPath = strings.Replace(downloadFolderPath, "~", homeDir, 1)
 		}
@@ -132,6 +131,11 @@ func resolveDownloadFolderPath(mangaSlug string, providedOutputPath string) (str
 	return filepath.Join(downloadFolderPath, mangaSlug), nil
 }
 
+func debugOutput(message string) {
+	if isDebugOutputEnabled {
+		log.Println("DEBUG: " + message)
+	}
+}
 
 func concatErrorString(prefix string, err error) string {
 	return fmt.Sprintf(prefix, err)

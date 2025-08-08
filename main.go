@@ -5,22 +5,32 @@ import (
 	"log"
 )
 
+var isDebugOutputEnabled bool
+
 func main() {
 	// Verify provided args
-	args := getArgs()
+	args, err := getArgs()
+	if err != nil {
+		log.Fatalln(err)
+	}
 	if !args.hasEnoughArgs || args.help {
 		printHelp()
 		return
 	}
 
-	// Search manga
-	if len(args.title) > 0 {
-		// Install Playwright dependencies
+	// Install Playwright dependencies
+	if args.install {
 		err := installPlaywright()
 		if err != nil {
 			log.Fatalln(err)
 		}
-		
+	}
+
+	// Check if debug output enabled
+	isDebugOutputEnabled = args.verbose	
+
+	// Search manga
+	if len(args.title) > 0 {
 		// Begin searching process
 		mangaUrl, err := searchManga(args.title)
 		if err != nil {
@@ -41,13 +51,17 @@ func main() {
 
 		// Filter chapters if prefix, first or last is set
 		for chapterTitle := range chapters {
-			isToDownload, err := isChapterToDownload(args.prefix, args.first, args.last, chapterTitle)
+			isToDownload, err := isChapterToDownload(args.prefix, args.first, args.isFirstSet, args.last, args.isLastSet, chapterTitle)
 			if err != nil {
 				log.Fatalln(err)
 			}
 			if !isToDownload {
 				delete(chapters, chapterTitle)
 			}
+		}
+		if len(chapters) == 0 {
+			log.Println("No chapters to download")
+			return
 		}
 		
 		// Download chapters to manga title folder
@@ -61,6 +75,16 @@ func main() {
 			if err != nil {
 				log.Fatalln(err)
 			}
-		}	
+		}
+
+		// Compress chapters if needed
+		if len(args.compress) > 0 {
+			for chapterTitle, _ := range chapters {
+				err = compressChapter(downloadFolderPath, chapterTitle, args.compress)
+				if err != nil {
+					log.Fatalln(err)
+				}
+			}
+		}
 	}
 }

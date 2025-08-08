@@ -1,8 +1,9 @@
 package main
 
 import (
-//	"errors"
+	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"strings"
 	"os"
@@ -15,26 +16,24 @@ func downloadImage(imageUrl string, filePath string, waitGroup *sync.WaitGroup) 
 	// Get image from request
 	resp, err := http.Get(imageUrl)
 	if err != nil {
-		// add handler
-		fmt.Println(err)
+		return errors.New(concatErrorString("Could not send request to get image: %s", err))
 	}
 	defer resp.Body.Close()
 	
 	// Create file
 	out, err := os.Create(filePath)
 	if err != nil {
-		// add handler
-		fmt.Println(err)
+		return errors.New(concatErrorString("Could not create file for downloaded image: %s", err))
 	}
 	defer out.Close()
 
 	// Write
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
-		// add handler
-		fmt.Println(err)
+		return errors.New(concatErrorString("Could not copy downloaded image to file: %s", err))
 	}
 	waitGroup.Done()
+	log.Println(fmt.Sprintf("Successfully downloaded: %s", imageUrl))
 
 	return nil
 }
@@ -43,16 +42,15 @@ func downloadChapter(downloadPath string, chapterTitle string, chapterUrl string
 	// Download all images from chapter
 	images, err := extractChapterImageLinks(chapterUrl)
 	if err != nil {
-		// add handler
-		fmt.Println(err)
+		return err
 	}
+	log.Println(fmt.Sprintf("Found %d images in %s", len(images), chapterTitle))
 
 	//	Create chapter folder
 	chapterFolderPath := filepath.Join(downloadPath, chapterTitle)
 	err = createDirectory(chapterFolderPath)
 	if err != nil {
-		// add handler
-		fmt.Println(err)
+		return err
 	}
 	
 	// Download images async

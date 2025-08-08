@@ -17,13 +17,15 @@ type Args struct {
 	compress string
 	prefix string
 	first float32
+	isFirstSet bool
 	last float32
+	isLastSet bool
 	verbose bool
 }
 
 func printHelp() {
 	// Print cli usage help
-	fmt.Println("usage: weebcentral-dl <operation> [...]")
+	fmt.Println("usage: weebcentral-dl [--option] [argument]")
 	fmt.Println("operations:")
 	// TO DO
 	// continue usage help text
@@ -87,25 +89,25 @@ func getArgs() (*Args, error) {
 			// Check for first num of volume arg
 			case "-f", "--first":
 				// Check if it has string entry following
-				parsedArgs.start = -1
 				if len(args) > (index + 1) && !strings.HasPrefix(args[index + 1], "-") {
-					start, err := strconv.ParseFloat(args[index + 1], 32)
+					first, err := strconv.ParseFloat(args[index + 1], 32)
 					if err != nil {
 						return nil, errors.New("Invalid value for \"-f\" or \"--first\" flag")
 					}
-					parsedArgs.start = start
+					parsedArgs.isFirstSet = true
+					parsedArgs.first = float32(first)
 				}
 
 			// Check for last num of volume arg
 			case "-l", "--last":
 				// Check if it has string entry following
-				parsedArgs.last = -1
 				if len(args) > (index + 1) && !strings.HasPrefix(args[index + 1], "-") {
 					last, err := strconv.ParseFloat(args[index + 1], 32)
 					if err != nil {
 						return nil, errors.New("Invalid value for \"-l\" or \"--last\" flag")
 					}
-					parsedArgs.last = last
+					parsedArgs.last = float32(last)
+					parsedArgs.isLastSet = true
 				}
 
 			// Check for enable verbose arg

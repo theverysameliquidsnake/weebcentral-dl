@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strings"
 	"errors"
 	"github.com/playwright-community/playwright-go"
@@ -14,7 +13,7 @@ func installPlaywright() error {
 	}
 	err := playwright.Install(&installOptions)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Could not install Playwright:%s", err))
+		return errors.New(concatErrorString("Could not install Playwright: %s", err))
 	}
 
 	return nil
@@ -24,7 +23,7 @@ func extractChapterImageLinks(chapterUrl string) ([]string, error) {
 	// Init playwright
 	pw, err := playwright.Run()
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not launch playwright:%s", err))
+		return nil, errors.New(concatErrorString("Could not launch playwright: %s", err))
 	}
 
 	browser, err := pw.Chromium.Launch(
@@ -33,17 +32,17 @@ func extractChapterImageLinks(chapterUrl string) ([]string, error) {
 		},
 	)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not launch browser:%s", err))
+		return nil, errors.New(concatErrorString("Could not launch browser: %s", err))
 	}
 
 	page, err := browser.NewPage()
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not create page:%s", err))
+		return nil, errors.New(concatErrorString("Could not create page: %s", err))
 	}
 
 	err = page.SetViewportSize(1920, 1080)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not set page height and width:%s", err))
+		return nil, errors.New(concatErrorString("Could not set page height and width: %s", err))
 	}
 
 	// Navigate to chapter page and collect image links
@@ -52,7 +51,7 @@ func extractChapterImageLinks(chapterUrl string) ([]string, error) {
 		Timeout: playwright.Float(60000),
 	})
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not navigate to provided URL:%s", err))
+		return nil, errors.New(concatErrorString("Could not navigate to provided URL: %s", err))
 	}
 
 	_, err = page.WaitForSelector("img", playwright.PageWaitForSelectorOptions {
@@ -60,19 +59,19 @@ func extractChapterImageLinks(chapterUrl string) ([]string, error) {
 		Timeout: playwright.Float(30000),
 	})
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not load page images:%s", err))
+		return nil, errors.New(concatErrorString("Could not load page images: %s", err))
 	}
 
 	// Extract all images
 	images, err := page.Locator("img").All()
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not extract page images:%s", err))
+		return nil, errors.New(concatErrorString("Could not extract page images: %s", err))
 	}
 	imageLinks := []string{}
 	for index := range images {
 		src, err := images[index].GetAttribute("src")
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Could not get image src:%s", err))
+			return nil, errors.New(concatErrorString("Could not get image src: %s", err))
 		}
 		
 		srcLower := strings.ToLower(src)
@@ -84,12 +83,12 @@ func extractChapterImageLinks(chapterUrl string) ([]string, error) {
 	// Close browser and playwright
 	err = browser.Close()
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not close browser:%s", err))
+		return nil, errors.New(concatErrorString("Could not close browser: %s", err))
 	}
 
 	err = pw.Stop()
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Could not stop playwright:%s", err))
+		return nil, errors.New(concatErrorString("Could not stop playwright: %s", err))
 	}
 
 	return imageLinks, nil
