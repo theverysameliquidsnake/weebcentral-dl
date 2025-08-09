@@ -8,6 +8,9 @@ import (
 var isDebugOutputEnabled bool
 
 func main() {
+	log.SetFlags(0)
+	log.SetOutput(new(customWriter))
+
 	// Verify provided args
 	args, err := getArgs()
 	if err != nil {
@@ -34,26 +37,30 @@ func main() {
 		// Begin searching process
 		mangaUrl, err := searchManga(args.title)
 		if err != nil {
-			log.Fatalln(err)
+			log.Println(err)
+			return
 		}
-		
+
 		// Get manga id and slug from URL
 		id, slug, err := extractAttrFromUrl(mangaUrl)
 		if err != nil {
-			log.Fatalln(err)
+			log.Println(err)
+			return
 		}
 
 		// Retrieve manga chapters with URL
 		chapters, err := getChaptersFromList(fmt.Sprintf("https://weebcentral.com/series/%s/full-chapter-list", id))
 		if err != nil {
-			log.Fatalln(err)
+			log.Println(err)
+			return
 		}
 
 		// Filter chapters if prefix, first or last is set
 		for chapterTitle := range chapters {
 			isToDownload, err := isChapterToDownload(args.prefix, args.first, args.isFirstSet, args.last, args.isLastSet, chapterTitle)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 			if !isToDownload {
 				delete(chapters, chapterTitle)
@@ -67,13 +74,15 @@ func main() {
 		// Download chapters to manga title folder
 		downloadFolderPath, err := resolveDownloadFolderPath(slug, args.output)
 		if err != nil {
-			log.Fatalln(err)
+			log.Println(err)
+			return
 		}
 
 		for chapterTitle, chapterUrl := range chapters {
 			err = downloadChapter(downloadFolderPath, chapterTitle, chapterUrl)
 			if err != nil {
-				log.Fatalln(err)
+				log.Println(err)
+				return
 			}
 		}
 
@@ -82,7 +91,8 @@ func main() {
 			for chapterTitle, _ := range chapters {
 				err = compressChapter(downloadFolderPath, chapterTitle, args.compress)
 				if err != nil {
-					log.Fatalln(err)
+					log.Println(err)
+					return
 				}
 			}
 		}

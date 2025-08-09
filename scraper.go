@@ -9,6 +9,9 @@ import (
 )
 
 func searchManga(title string) (string, error) {
+	
+	debugOutput(fmt.Sprintf("Searching for %s", title))
+	
 	// Request params
 	url := "https://weebcentral.com/search/simple"
 	method := "POST"
@@ -25,21 +28,44 @@ func searchManga(title string) (string, error) {
 	// Find all manga links in search results
 	searchResults := doc.Find("#quick-search-result a")
 	if searchResults.Length() > 0 {
-		// Get info from the first result
-		firstResult := searchResults.First();
-		mangaUrl, attrExists := firstResult.Attr("href")
-		if attrExists {
-			mangaTitle := strings.TrimSpace(firstResult.Find("div.flex-1").First().Text())
-			log.Println("Found manga:", mangaTitle)
-			log.Println("URL:", mangaUrl)
-			return mangaUrl, nil
+
+		debugOutput(fmt.Sprintf("Found %d raw result(s)", searchResults.Length()))
+
+		// Print search results to select
+		log.Println(fmt.Sprintf("Found results for \"%s\":", title))
+		searchResults.Each(func(index int, searchResult *goquery.Selection) {
+			mangaUrl, attrExists := searchResult.Attr("href")
+			if attrExists {
+				fmt.Println(fmt.Sprintf("    [%d] %s on %s", index + 1, strings.TrimSpace(searchResult.Find("div.flex-1").Text()), mangaUrl))
+			}
+		})
+		fmt.Printf(fmt.Sprintf("Select [0-%d] (0 to cancel): ", searchResults.Length()))
+		
+		// Get number input
+		var selectedBullet int
+		_, err = fmt.Scanln(&selectedBullet)
+		if err != nil || selectedBullet < 0 || selectedBullet > searchResults.Length() {
+			selectedBullet = 0
 		}
+		if selectedBullet == 0 {
+			return "", errors.New("No search result chosen or invalid input")
+		}
+
+		// Get info from the selected result
+		selectedResult := searchResults.Eq(selectedBullet - 1);
+		mangaUrl, _ := selectedResult.Attr("href")
+		mangaTitle := strings.TrimSpace(selectedResult.Find("div.flex-1").Text())
+		log.Println(fmt.Sprintf("Selected manga \"%s\" on %s", mangaTitle, mangaUrl))
+		return mangaUrl, nil
 	}
 	
 	return "", errors.New("No manga found in search results")
 }
 
 func getChaptersFromList(chapterListUrl string) (map[string]string, error) {
+
+	debugOutput(fmt.Sprintf("Collecting chapters from %s", chapterListUrl))
+	
 	// Request params
 	method := "GET"
 	
@@ -51,7 +77,7 @@ func getChaptersFromList(chapterListUrl string) (map[string]string, error) {
 	// Search for chapters
 	chapterLinks := doc.Find("a[href*='/chapters/']")
 	if chapterLinks.Length() > 0 {
-		log.Println(fmt.Sprintf("Found %d raw chapter links on page", chapterLinks.Length()))
+		log.Println(fmt.Sprintf("Found %d chapter links on page", chapterLinks.Length()))
 		chapters := make(map[string]string)
 		chapterLinks.Each(func(index int, link *goquery.Selection) {
 			chapterLink, exists := link.Attr("href")

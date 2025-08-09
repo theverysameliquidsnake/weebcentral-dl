@@ -10,7 +10,6 @@ import (
 	"io"
 	"os"
 	"fmt"
-	"log"
 	"path/filepath"
 	"github.com/PuerkitoBio/goquery"
 )
@@ -33,12 +32,16 @@ func sendRequest(method string, url string, headers map[string]string, body io.R
 		Timeout: time.Second * 10,
 	}
 
+	debugOutput(fmt.Sprintf("Sending %s request to %s", method, url))
+
 	// Send request
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.New(concatErrorString("Error sending request: %s", err))
 	}
 	defer resp.Body.Close()
+
+	debugOutput(fmt.Sprintf("Response Code %d of %s to %s", resp.StatusCode, method, url))
 
 	// Parse HTML response
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
@@ -52,6 +55,9 @@ func sendRequest(method string, url string, headers map[string]string, body io.R
 func extractAttrFromUrl(mangaUrl string) (string, string, error) {
 	if len(mangaUrl) > 0 {
 		var id, slug string
+
+		debugOutput(fmt.Sprintf("Extracting ID and slug from %s", mangaUrl))
+
 		// Extract the series ID from the URL
 		// URL format: https://weebcentral.com/series/ID/SLUG
 		parts := strings.Split(mangaUrl, "/")
@@ -59,6 +65,9 @@ func extractAttrFromUrl(mangaUrl string) (string, string, error) {
 			// Series IDs are 26 characters long
 			if len(part) == 26 && regexp.MustCompile(`^[a-zA-Z0-9]*$`).MatchString(part) {
 				id = part
+
+				debugOutput(fmt.Sprintf("Got ID \"%s\" from url", id))
+
 				break
 			}
 		}
@@ -67,6 +76,8 @@ func extractAttrFromUrl(mangaUrl string) (string, string, error) {
 		// URL format: https://weebcentral.com/series/ID/SLUG
 		if len(parts) >= 6 {
 			slug = parts[len(parts) - 1]
+
+			debugOutput(fmt.Sprintf("Got slug \"%s\" from url", slug))
 		}
 
 		return id, slug, nil
@@ -87,25 +98,41 @@ func isChapterToDownload(prefix string, first float32, isFirstSet bool, last flo
 
 	chapterPrefix := strings.TrimSpace(strings.Join(parts[:len(parts) - 1], " "))
 
+	debugOutput(fmt.Sprintf("Splitted %s to %s and %f", chapterTitle, chapterPrefix, chapterNumber))
+	
 	// Check if prefix match
 	if len(prefix) > 0 && strings.ToLower(prefix) != strings.ToLower(chapterPrefix) {
+		
+		debugOutput(fmt.Sprintf("Skipping %s", chapterTitle))
+		
 		return false, nil
 	}
 
 	// Check if first match
 	if isFirstSet && first > chapterNumber {
+		
+		debugOutput(fmt.Sprintf("Skipping %s", chapterTitle))
+		
 		return false, nil
 	}
 
 	// Check if last match
 	if isLastSet && last < chapterNumber {
+		
+		debugOutput(fmt.Sprintf("Skipping %s", chapterTitle))
+		
 		return false, nil
 	}
-
+	
+	debugOutput(fmt.Sprintf("Keeping %s", chapterTitle))
+	
 	return true, nil
 }
 
 func createDirectory(dirPath string) error {
+	
+	debugOutput(fmt.Sprintf("Creating %s", dirPath))
+	
 	err := os.MkdirAll(dirPath, os.ModePerm)
 	if err != nil {
 		return errors.New(concatErrorString("Could not create a directory: %s", err))
@@ -129,14 +156,4 @@ func resolveDownloadFolderPath(mangaSlug string, providedOutputPath string) (str
 	}
 
 	return filepath.Join(downloadFolderPath, mangaSlug), nil
-}
-
-func debugOutput(message string) {
-	if isDebugOutputEnabled {
-		log.Println("DEBUG: " + message)
-	}
-}
-
-func concatErrorString(prefix string, err error) string {
-	return fmt.Sprintf(prefix, err)
 }
