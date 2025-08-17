@@ -8,6 +8,7 @@ import (
 var isDebugOutputEnabled bool
 
 func main() {
+	// Set custom log format
 	log.SetFlags(0)
 	log.SetOutput(new(customWriter))
 
@@ -30,37 +31,33 @@ func main() {
 	}
 
 	// Check if debug output enabled
-	isDebugOutputEnabled = args.verbose	
+	isDebugOutputEnabled = args.verbose
 
 	// Search manga
 	if len(args.title) > 0 {
 		// Begin searching process
 		mangaUrl, err := searchManga(args.title)
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
 
 		// Get manga id and slug from URL
 		id, slug, err := extractAttrFromUrl(mangaUrl)
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
 
 		// Retrieve manga chapters with URL
 		chapters, err := getChaptersFromList(fmt.Sprintf("https://weebcentral.com/series/%s/full-chapter-list", id))
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
 
 		// Filter chapters if prefix, first or last is set
 		for chapterTitle := range chapters {
 			isToDownload, err := isChapterToDownload(args.prefix, args.first, args.isFirstSet, args.last, args.isLastSet, chapterTitle)
 			if err != nil {
-				log.Println(err)
-				return
+				log.Fatalln(err)
 			}
 			if !isToDownload {
 				delete(chapters, chapterTitle)
@@ -70,29 +67,26 @@ func main() {
 			log.Println("No chapters to download")
 			return
 		}
-		
+
 		// Download chapters to manga title folder
 		downloadFolderPath, err := resolveDownloadFolderPath(slug, args.output)
 		if err != nil {
-			log.Println(err)
-			return
+			log.Fatalln(err)
 		}
 
 		for chapterTitle, chapterUrl := range chapters {
 			err = downloadChapter(downloadFolderPath, chapterTitle, chapterUrl)
 			if err != nil {
-				log.Println(err)
-				return
+				log.Fatalln(err)
 			}
 		}
 
 		// Compress chapters if needed
 		if len(args.compress) > 0 {
-			for chapterTitle, _ := range chapters {
+			for chapterTitle := range chapters {
 				err = compressChapter(downloadFolderPath, chapterTitle, args.compress)
 				if err != nil {
-					log.Println(err)
-					return
+					log.Fatalln(err)
 				}
 			}
 		}
