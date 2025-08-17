@@ -43,7 +43,7 @@ weebcentral-dl -t Dandadan -f 10 -l 25
 ```
 weebcentral-dl -t Dandadan -f 10 -c cbz
 ```
-4. **Search for manda, download chapters up to 50 and save it to `~/manga` folder:**
+4. **Search for manga, download chapters up to 50 and save it to `~/manga` folder:**
 ```
 weebcentral-dl -t Dandadan -l 50 -o ~/manga
 ```
