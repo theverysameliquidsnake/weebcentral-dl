@@ -7,10 +7,12 @@ A script for downloading manga from weebcentral.com written in Go.
 
 | Option | Description |
 |:---|:---|
-| `-t, --title` | The title of the manga to search for. |
-| `-f, --first` | Download only chapters equals or newer than specified. |
-| `-l, --last` | Download only chapters equals or older than specified. |
-| `-c, --compress` | Compress downloaded chapters to .zip or .cbz format. |
-| `-o, --output` | The folder where downloaded manga will be saved. |
-| `-v, --verbose` | Enable detailed debug output. |
-| `-i, --install` | Install required Playwright dependencies (required to be enabled for the first run). |
+| `-h, --help` | display help message and exit |
+| `-t, --title` | search manga by specified title |
+| `-f, --first` | filter chapters equal or newer than specified number |
+| `-l, --last` | filter chapters equal or older than specified number |
+| `-p, --prefix` | filter chapters by specified chapter prefix |
+| `-o, --output` | download to specified directory |
+| `-c, --compress` | compress to specified format (cbz or zip) |
+| `-i, --install` | install required Playwright dependencies |
+| `-v, --verbose` | enable detailed log output |

@@ -1,9 +1,9 @@
 package main
 
 import (
-	"time"
 	"fmt"
 	"log"
+	"time"
 )
 
 type customWriter struct{}
@@ -16,8 +16,4 @@ func debugOutput(msg string) {
 	if isDebugOutputEnabled {
 		log.Println("[DEBUG]", msg)
 	}
-}
-
-func concatErrorString(prefix string, err error) string {
-	return fmt.Sprintf(prefix, err)
 }
