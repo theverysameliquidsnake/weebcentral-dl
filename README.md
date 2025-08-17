@@ -30,7 +30,7 @@ go build -o weebcentral-dl
 
 ### Examples
 
-1. **Search for manga and download all**
+1. **Search for manga and download allchapters:**
 ```
 weebcentral-dl -t Dandadan
 ```
